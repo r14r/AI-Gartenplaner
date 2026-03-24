@@ -1,0 +1,73 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: garden-ollama
+    ports:
+      - "${OLLAMA_PORT_PUBLIC}:${OLLAMA_PORT_PRIVATE}"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0:${OLLAMA_PORT_PRIVATE}"
+    networks:
+      - garden-net
+    restart: unless-stopped
+
+  ollama-init:
+    build: ./ollama-init
+    container_name: garden-ollama-init
+    profiles: ["init"]
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_BASE_URL: http://${OLLAMA_HOST}:${OLLAMA_PORT_PRIVATE}
+      OLLAMA_MODELS: ${OLLAMA_MODELS}
+      OLLAMA_INIT_PARALLEL: ${OLLAMA_INIT_PARALLEL}
+      OLLAMA_INIT_POLL_SECONDS: ${OLLAMA_INIT_POLL_SECONDS}
+    networks:
+      - garden-net
+    restart: "no"
+
+  backend:
+    build: ./backend
+    container_name: garden-backend
+    ports:
+      - "${BACKEND_PORT_PUBLIC}:${BACKEND_PORT_PRIVATE}"
+    environment:
+      OLLAMA_BASE_URL: http://${OLLAMA_HOST}:${OLLAMA_PORT_PRIVATE}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_MODELS: ${OLLAMA_MODELS}
+      OLLAMA_PULL_PARALLEL: ${OLLAMA_PULL_PARALLEL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CONFIG_DIR: /app/data
+      BACKEND_PORT_PRIVATE: ${BACKEND_PORT_PRIVATE}
+    depends_on:
+      - ollama
+    volumes:
+      - backend_data:/app/data
+    networks:
+      - garden-net
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: garden-frontend
+    ports:
+      - "${FRONTEND_PORT_PUBLIC}:${FRONTEND_PORT_PRIVATE}"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+      FRONTEND_PORT_PRIVATE: ${FRONTEND_PORT_PRIVATE}
+    depends_on:
+      - backend
+    networks:
+      - garden-net
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    name: ${OLLAMA_VOLUME_NAME}
+  backend_data:
+    name: ${BACKEND_DATA_VOLUME_NAME}
+
+networks:
+  garden-net:
+    name: ${DOCKER_NETWORK}
