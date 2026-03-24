@@ -19,6 +19,49 @@
       <Message v-if="healthMessage" severity="info" style="margin-top:1rem">{{ healthMessage }}</Message>
     </div>
 
+    <div class="side-panel-card">
+      <h3 style="margin-top:0">Analyse-Ergebnis</h3>
+      <div v-if="result">
+        <p><strong>Score:</strong> {{ result.score }}/100 <span class="small-muted">· Modell: {{ result.model || "–" }} · Quelle: {{ result.source || "–" }}</span></p>
+        <p><strong>Zusammenfassung:</strong> {{ result.summary }}</p>
+
+        <div>
+          <strong>Gute Kombinationen</strong>
+          <ul class="good-list">
+            <li v-for="item in result.good_pairs" :key="item.plants.join('-') + item.reason">
+              {{ item.plants.join(' + ') }} — {{ item.reason }}
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <strong>Konflikte</strong>
+          <ul class="warning-list">
+            <li v-for="item in result.conflicts" :key="item.plants.join('-') + item.reason">
+              {{ item.plants.join(' + ') }} — {{ item.reason }}
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <strong>Empfehlungen</strong>
+          <ul>
+            <li v-for="item in result.recommendations" :key="item">{{ item }}</li>
+          </ul>
+        </div>
+
+        <div>
+          <strong>Layout-Vorschlag</strong>
+          <ul>
+            <li v-for="item in result.layout_suggestion" :key="item.plant + item.position">
+              {{ item.plant }} → {{ item.position }} ({{ item.reason }})
+            </li>
+          </ul>
+        </div>
+      </div>
+      <p v-else class="small-muted">Noch keine Analyse ausgeführt.</p>
+    </div>
+
     <div class="side-panel-card" v-if="taskState.id">
       <div class="meta-item">
         <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; flex-wrap:wrap;">
@@ -63,46 +106,7 @@
           </div>
         </div>
       </div>
-
-      <div v-if="result">
-        <p><strong>Score:</strong> {{ result.score }}/100 <span class="small-muted">· Modell: {{ result.model || "–" }} · Quelle: {{ result.source || "–" }}</span></p>
-        <p><strong>Zusammenfassung:</strong> {{ result.summary }}</p>
-
-        <div>
-          <strong>Gute Kombinationen</strong>
-          <ul class="good-list">
-            <li v-for="item in result.good_pairs" :key="item.plants.join('-') + item.reason">
-              {{ item.plants.join(' + ') }} — {{ item.reason }}
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <strong>Konflikte</strong>
-          <ul class="warning-list">
-            <li v-for="item in result.conflicts" :key="item.plants.join('-') + item.reason">
-              {{ item.plants.join(' + ') }} — {{ item.reason }}
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <strong>Empfehlungen</strong>
-          <ul>
-            <li v-for="item in result.recommendations" :key="item">{{ item }}</li>
-          </ul>
-        </div>
-
-        <div>
-          <strong>Layout-Vorschlag</strong>
-          <ul>
-            <li v-for="item in result.layout_suggestion" :key="item.plant + item.position">
-              {{ item.plant }} → {{ item.position }} ({{ item.reason }})
-            </li>
-          </ul>
-        </div>
-      </div>
-      <p v-else class="small-muted">Noch keine Analyse ausgeführt.</p>
+      <p v-else class="small-muted">Noch keine Statusmeldungen vorhanden.</p>
     </div>
   </div>
 </template>
