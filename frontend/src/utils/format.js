@@ -14,6 +14,7 @@ export function buildCalendarEvents(seeds, year = new Date().getFullYear()) {
   }
 
   const events = []
+  const eventIdCounts = new Map()
   seeds.forEach((seed) => {
     Object.entries(phaseMeta).forEach(([key, meta]) => {
       const months = seed[key] || []
@@ -21,8 +22,13 @@ export function buildCalendarEvents(seeds, year = new Date().getFullYear()) {
       const sorted = [...months].sort((a, b) => a - b)
       const start = new Date(year, sorted[0] - 1, 1)
       const end = new Date(year, sorted[sorted.length - 1], 1)
+      const baseId = `${seed.id}-${key}-${year}`
+      const duplicateCount = eventIdCounts.get(baseId) || 0
+      eventIdCounts.set(baseId, duplicateCount + 1)
+      const eventId = duplicateCount === 0 ? baseId : `${baseId}-${duplicateCount + 1}`
+
       events.push({
-        id: `${seed.id}-${key}-${year}`,
+        id: eventId,
         title: `${seed.name}${seed.sort ? ` ${seed.sort}` : ''} – ${meta.label}`,
         start: start.toISOString().slice(0, 10),
         end: end.toISOString().slice(0, 10),
