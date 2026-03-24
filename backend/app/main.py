@@ -889,6 +889,7 @@ async def admin_ollama_health():
             'installed_count': len(models),
             'default_model': get_active_model(),
             'curated_models': CURATED_MODELS,
+            'request_timeout_seconds': REQUEST_TIMEOUT_SECONDS,
         }
     except Exception as exc:
         return {
@@ -897,6 +898,7 @@ async def admin_ollama_health():
             'installed_count': 0,
             'default_model': get_active_model(),
             'curated_models': CURATED_MODELS,
+            'request_timeout_seconds': REQUEST_TIMEOUT_SECONDS,
             'detail': str(exc),
         }
 

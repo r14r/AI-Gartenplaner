@@ -128,9 +128,12 @@
             <strong>Status: {{ currentTask.status }}</strong>
             <div class="small-muted">{{ currentTask.current_phase || '–' }} · {{ currentTask.current_message || '–' }}</div>
           </div>
-          <Tag :severity="tagSeverity(currentTask.status)" :value="`${currentTask.progress || 0}%`" />
+          <Tag :severity="tagSeverity(currentTask.status)" :value="currentTaskTimeoutLabel" />
         </div>
-        <ProgressBar :value="currentTask.progress || 0" />
+        <ProgressBar :value="currentTaskTimeoutProgress" />
+        <div class="small-muted" style="margin-top:0.5rem;">
+          Timeout verbleibend: {{ currentTaskTimeoutLabel }} (von {{ formatCountdown(taskTimeoutSeconds) }})
+        </div>
         <div class="step-list" v-if="currentTask.steps?.length">
           <div v-for="(step, index) in currentTask.steps.slice(-8)" :key="index" class="step-item">
             <span class="step-time">{{ formatTimestamp(step.timestamp) }}</span>
@@ -241,7 +244,7 @@ defineProps({
 const loading = ref(false)
 const installing = ref(false)
 const modelsPayload = ref({ models: [], curated_models: [], default_model: null })
-const health = ref({ reachable: false })
+const health = ref({ reachable: false, request_timeout_seconds: null })
 const selectedCuratedModel = ref(null)
 const customModelName = ref('')
 const pullTasks = ref([])
@@ -257,6 +260,8 @@ const generateTasks = ref([])
 const currentTaskId = ref(null)
 const currentTask = ref(null)
 let pollTimer = null
+let clockTimer = null
+const nowTick = ref(Date.now())
 
 const query = ref({
   model: '',
@@ -271,6 +276,18 @@ const models = computed(() => modelsPayload.value.models || [])
 const modelOptions = computed(() => models.value.map((item) => ({ label: item.name, value: item.name })))
 const curatedModelOptions = computed(() => (modelsPayload.value.curated_models || []).map((name) => ({ label: name, value: name })))
 const activePullTasks = computed(() => (pullTasks.value || []).filter((task) => ['queued', 'running'].includes(task.status)))
+const taskTimeoutSeconds = computed(() => Math.max(0, Number(health.value.request_timeout_seconds) || 0))
+const currentTaskTimeoutProgress = computed(() => {
+  if (!currentTask.value) return 0
+  if (!taskTimeoutSeconds.value) return currentTask.value.progress || 0
+  const remaining = getRemainingTimeoutSeconds(currentTask.value)
+  return Math.round((remaining / taskTimeoutSeconds.value) * 100)
+})
+const currentTaskTimeoutLabel = computed(() => {
+  if (!currentTask.value) return '–'
+  if (!taskTimeoutSeconds.value) return `${currentTask.value.progress || 0}%`
+  return formatCountdown(getRemainingTimeoutSeconds(currentTask.value))
+})
 
 function latestPullLog(task) {
   const log = task?.log || []
@@ -301,6 +318,27 @@ function formatTimestamp(value) {
   } catch {
     return value
   }
+}
+
+function formatCountdown(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '–'
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function getRemainingTimeoutSeconds(task) {
+  const timeout = taskTimeoutSeconds.value
+  if (!timeout) return 0
+  const startRaw = task?.started_at || task?.created_at
+  const startTs = startRaw ? new Date(startRaw).getTime() : Number.NaN
+  if (!Number.isFinite(startTs)) return timeout
+  const elapsed = Math.max(0, Math.floor((nowTick.value - startTs) / 1000))
+  return Math.max(0, timeout - elapsed)
 }
 
 function tagSeverity(status) {
@@ -438,12 +476,28 @@ function stopPolling() {
   }
 }
 
+function startClock() {
+  stopClock()
+  clockTimer = window.setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
+}
+
+function stopClock() {
+  if (clockTimer) {
+    window.clearInterval(clockTimer)
+    clockTimer = null
+  }
+}
+
 onMounted(async () => {
   await loadAll()
   startPolling()
+  startClock()
 })
 
 onBeforeUnmount(() => {
   stopPolling()
+  stopClock()
 })
 </script>
