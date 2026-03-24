@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://ollama:11434').rstrip('/')
 DEFAULT_OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b-instruct')
+REQUEST_TIMEOUT_SECONDS = 300.0
 DEFAULT_MODELS = [item.strip() for item in os.getenv('OLLAMA_MODELS', DEFAULT_OLLAMA_MODEL).split(',') if item.strip()]
 CORS_ORIGINS = [item.strip() for item in os.getenv('CORS_ORIGINS', 'http://localhost:5173').split(',') if item.strip()]
 CONFIG_DIR = Path(os.getenv('CONFIG_DIR', '/app/data'))
@@ -244,7 +245,7 @@ def run_admin_query_task(task_id: str, payload: dict):
             request_json['system'] = system
         append_admin_step(task_id, 'request', 'Streaming-Anfrage gestartet', 25)
         metrics = {}
-        with httpx.stream('POST', f'{OLLAMA_BASE_URL}/api/generate', json=request_json, timeout=1800.0) as response:
+        with httpx.stream('POST', f'{OLLAMA_BASE_URL}/api/generate', json=request_json, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             response.raise_for_status()
             for line in response.iter_lines():
                 if not line:
@@ -277,21 +278,21 @@ def run_admin_query_task(task_id: str, payload: dict):
 
 
 async def fetch_model_details(model_name: str):
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = await client.post(f'{OLLAMA_BASE_URL}/api/show', json={'model': model_name})
         response.raise_for_status()
         return response.json()
 
 
 async def delete_model_remote(model_name: str):
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = await client.delete(f'{OLLAMA_BASE_URL}/api/delete', json={'model': model_name})
         response.raise_for_status()
         return response.json() if response.content else {'status': 'ok'}
 
 
 async def copy_model_remote(source: str, destination: str):
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = await client.post(f'{OLLAMA_BASE_URL}/api/copy', json={'source': source, 'destination': destination})
         response.raise_for_status()
         return response.json() if response.content else {'status': 'ok'}
@@ -309,7 +310,7 @@ async def startup_event():
 
 
 async def fetch_installed_models() -> List[dict]:
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = await client.get(f'{OLLAMA_BASE_URL}/api/tags')
         response.raise_for_status()
         payload = response.json()
@@ -497,7 +498,7 @@ def call_ollama_json_sync(system_prompt: str, user_prompt: str, model: str, temp
         },
         'required': ['score', 'summary', 'good_pairs', 'conflicts', 'recommendations', 'layout_suggestion']
     }
-    with httpx.Client(timeout=120.0) as client:
+    with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = client.post(
             f'{OLLAMA_BASE_URL}/api/generate',
             json={
@@ -567,7 +568,7 @@ def run_analysis_task(task_id: str, payload: dict):
 
         append_ai_step(task_id, 'connect', 'Ollama-Erreichbarkeit wird geprüft', 45)
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
                 health = client.get(f'{OLLAMA_BASE_URL}/api/tags')
                 health.raise_for_status()
         except Exception:
@@ -675,7 +676,7 @@ def run_pull_task(task_id: str, model: str):
             task = pull_tasks[task_id]
             task.update({'status': 'running', 'started_at': now_iso(), 'log': [f'Starte Pull für {model}'], 'progress': 1})
         try:
-            with httpx.stream('POST', f'{OLLAMA_BASE_URL}/api/pull', json={'model': model, 'stream': True}, timeout=1800.0) as response:
+            with httpx.stream('POST', f'{OLLAMA_BASE_URL}/api/pull', json={'model': model, 'stream': True}, timeout=REQUEST_TIMEOUT_SECONDS) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if not line:
@@ -713,7 +714,7 @@ def run_pull_task(task_id: str, model: str):
                 task.setdefault('log', []).append('Modell erfolgreich installiert')
             append_pull_history({'task_id': task_id, 'model': model, 'status': 'completed', 'finished_at': now_iso()})
             try:
-                models = httpx.get(f'{OLLAMA_BASE_URL}/api/tags', timeout=20.0).json().get('models', [])
+                models = httpx.get(f'{OLLAMA_BASE_URL}/api/tags', timeout=REQUEST_TIMEOUT_SECONDS).json().get('models', [])
                 update_model_cache(models)
             except Exception:
                 pass
@@ -946,7 +947,7 @@ async def admin_generate(body: GenerateAdminRequest):
     }
     if body.system:
         payload['system'] = body.system
-    async with httpx.AsyncClient(timeout=600.0) as client:
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = await client.post(f'{OLLAMA_BASE_URL}/api/generate', json=payload)
         response.raise_for_status()
         data = response.json()
