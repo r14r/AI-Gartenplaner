@@ -282,3 +282,34 @@ body { margin: 0; }
     gap: 0.2rem;
   }
 }
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sidebar-area {
+  position: sticky;
+  top: 1rem;
+}
+
+.content-area {
+  min-width: 0;
+}
+
+.app-panel-menu .p-panelmenu-header-content,
+.app-panel-menu .p-panelmenu-content {
+  border: none;
+}
+
+@media (max-width: 1080px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-area {
+    position: static;
+  }
+}
