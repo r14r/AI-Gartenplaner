@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://ollama:11434').rstrip('/')
 DEFAULT_OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b-instruct')
-REQUEST_TIMEOUT_SECONDS = 300.0
+REQUEST_TIMEOUT_SECONDS = 3600.0
 DEFAULT_MODELS = [item.strip() for item in os.getenv('OLLAMA_MODELS', DEFAULT_OLLAMA_MODEL).split(',') if item.strip()]
 CORS_ORIGINS = [item.strip() for item in os.getenv('CORS_ORIGINS', 'http://localhost:5173').split(',') if item.strip()]
 CONFIG_DIR = Path(os.getenv('CONFIG_DIR', '/app/data'))
