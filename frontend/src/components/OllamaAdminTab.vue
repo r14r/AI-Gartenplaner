@@ -1,10 +1,10 @@
 <template>
-  <div class="grid-2 admin-grid">
-    <div class="side-panel-card">
+  <div>
+    <div v-if="mode === 'inventory'" class="side-panel-card">
       <div class="toolbar-row toolbar-space-between" style="margin-top:0">
         <div>
-          <h3 style="margin:0">Ollama Admin</h3>
-          <div class="small-muted">Modelle verwalten, Details anzeigen, kopieren, löschen und Testabfragen mit Statusschritten ausführen.</div>
+          <h3 style="margin:0">Modellbestand</h3>
+          <div class="small-muted">Modelle laden, installieren, kopieren und löschen.</div>
         </div>
         <Tag :severity="health.reachable ? 'success' : 'danger'" :value="health.reachable ? 'online' : 'offline'" />
       </div>
@@ -61,9 +61,18 @@
           </template>
         </Column>
       </DataTable>
+    </div>
+
+    <div v-else-if="mode === 'pulls'" class="side-panel-card">
+      <div class="toolbar-row toolbar-space-between" style="margin-top:0">
+        <div>
+          <h3 style="margin:0">Installationsstatus</h3>
+          <div class="small-muted">Fortschritt laufender Pull-Tasks beobachten.</div>
+        </div>
+        <Button label="Neu laden" icon="pi pi-refresh" severity="secondary" @click="loadAll" :loading="loading" />
+      </div>
 
       <div style="margin-top:1rem;" v-if="activePullTasks.length">
-        <h4 style="margin:0 0 0.5rem">Installations-Status</h4>
         <div v-for="task in activePullTasks" :key="task.id" class="meta-item" style="margin-bottom:0.75rem;">
           <div class="toolbar-row toolbar-space-between" style="margin-top:0; margin-bottom:0.5rem;">
             <div>
@@ -76,9 +85,10 @@
           <div class="task-log">{{ latestPullLog(task) }}</div>
         </div>
       </div>
+      <div v-else class="small-muted" style="margin-top:1rem;">Aktuell gibt es keine laufenden Installationen.</div>
     </div>
 
-    <div class="side-panel-card">
+    <div v-else-if="mode === 'console'" class="side-panel-card">
       <h3 style="margin-top:0">Query Console</h3>
       <div class="form-grid">
         <div>
@@ -110,7 +120,6 @@
 
       <div class="toolbar-row">
         <Button label="Ausführen" icon="pi pi-play" @click="runQuery" :loading="runningQuery" />
-        <Button label="Verlauf laden" icon="pi pi-history" severity="secondary" @click="loadGenerateTasks" />
       </div>
 
       <div v-if="currentTask" class="status-panel">
@@ -135,8 +144,15 @@
         <h4 style="margin:0 0 0.5rem">Antwort</h4>
         <pre class="console-output">{{ currentTask?.response || syncResponse || 'Noch keine Antwort.' }}</pre>
       </div>
+    </div>
 
-      <div v-if="currentTask?.metrics || syncMetrics" style="margin-top:1rem;">
+    <div v-else class="side-panel-card">
+      <div class="toolbar-row toolbar-space-between" style="margin-top:0; margin-bottom:0.5rem;">
+        <h3 style="margin:0">Query-Historie</h3>
+        <Button label="Verlauf laden" icon="pi pi-history" severity="secondary" @click="loadGenerateTasks" />
+      </div>
+
+      <div v-if="currentTask?.metrics || syncMetrics" style="margin-top:0.5rem; margin-bottom:1rem;">
         <h4 style="margin:0 0 0.5rem">Metriken</h4>
         <div class="meta-grid">
           <div class="meta-item"><div class="small-muted">Prompt-Tokens</div><strong>{{ (currentTask?.metrics || syncMetrics)?.prompt_eval_count ?? '–' }}</strong></div>
@@ -146,20 +162,17 @@
         </div>
       </div>
 
-      <div style="margin-top:1rem;">
-        <h4 style="margin:0 0 0.5rem">Letzte Queries</h4>
-        <div v-if="generateTasks.length" class="history-list">
-          <div v-for="task in generateTasks.slice(0, 6)" :key="task.id" class="meta-item history-item" @click="selectTask(task.id)">
-            <div class="toolbar-row toolbar-space-between" style="margin:0;">
-              <strong>{{ task.model }}</strong>
-              <Tag :severity="tagSeverity(task.status)" :value="task.status" />
-            </div>
-            <div class="small-muted">{{ formatTimestamp(task.created_at) }}</div>
-            <div class="small-muted ellipsis-two">{{ task.prompt }}</div>
+      <div v-if="generateTasks.length" class="history-list">
+        <div v-for="task in generateTasks.slice(0, 10)" :key="task.id" class="meta-item history-item" @click="selectTask(task.id)">
+          <div class="toolbar-row toolbar-space-between" style="margin:0;">
+            <strong>{{ task.model }}</strong>
+            <Tag :severity="tagSeverity(task.status)" :value="task.status" />
           </div>
+          <div class="small-muted">{{ formatTimestamp(task.created_at) }}</div>
+          <div class="small-muted ellipsis-two">{{ task.prompt }}</div>
         </div>
-        <div v-else class="small-muted">Noch keine Query-Historie vorhanden.</div>
       </div>
+      <div v-else class="small-muted">Noch keine Query-Historie vorhanden.</div>
     </div>
 
     <Dialog v-model:visible="detailsVisible" modal header="Modell-Details" :style="{ width: '70rem' }">
@@ -217,6 +230,13 @@ import {
   pullOllamaModel,
   getPullTasks,
 } from '@/api'
+
+defineProps({
+  mode: {
+    type: String,
+    default: 'inventory'
+  }
+})
 
 const loading = ref(false)
 const installing = ref(false)

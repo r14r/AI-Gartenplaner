@@ -25,7 +25,12 @@
         <Card>
           <template #title>Navigation</template>
           <template #content>
-            <PanelMenu :model="sidebarItems" :expandedKeys="expandedKeys" @update:expandedKeys="expandedKeys = $event" class="app-panel-menu" />
+            <PanelMenu
+              :model="sidebarItems"
+              :expandedKeys="expandedKeys"
+              @update:expandedKeys="expandedKeys = $event"
+              class="app-panel-menu"
+            />
           </template>
         </Card>
       </aside>
@@ -45,7 +50,7 @@
             />
             <AiAdvisorTab v-else-if="activeView === 'ai'" :beds="beds" :initialBedId="selectedAiBedId" />
             <ConfigTab v-else-if="activeView === 'config'" />
-            <OllamaAdminTab v-else />
+            <OllamaAdminTab v-else :mode="activeSubView" />
           </template>
         </Card>
       </main>
@@ -71,7 +76,8 @@ const selectedAiBedId = ref(defaultBeds[0]?.id || null)
 const totalAssignedSeeds = computed(() => beds.value.reduce((sum, bed) => sum + bed.seedIds.length, 0))
 
 const activeView = ref('seeds')
-const expandedKeys = ref({ planung: true, ki: true })
+const activeSubView = ref('inventory')
+const expandedKeys = ref({ planung: true, ki: true, admin: true })
 
 const viewMeta = {
   seeds: {
@@ -93,15 +99,41 @@ const viewMeta = {
   config: {
     label: 'Konfiguration',
     description: 'Modelle, Temperatur und App-Einstellungen verwalten.'
-  },
-  admin: {
-    label: 'Ollama Admin',
-    description: 'Installierte Modelle verwalten und Admin-Abfragen ausführen.'
   }
 }
 
-const activeViewLabel = computed(() => viewMeta[activeView.value]?.label || 'Ansicht')
-const activeViewDescription = computed(() => viewMeta[activeView.value]?.description || '')
+const adminSubViews = {
+  inventory: {
+    label: 'Ollama Admin · Modellbestand',
+    description: 'Installierte Modelle laden, hinzufügen, kopieren oder löschen.'
+  },
+  pulls: {
+    label: 'Ollama Admin · Installationsstatus',
+    description: 'Aktive Pull-Tasks und Fortschritte der Modell-Installationen überwachen.'
+  },
+  console: {
+    label: 'Ollama Admin · Query Console',
+    description: 'Manuelle Prompts gegen ein Modell ausführen und Antworten prüfen.'
+  },
+  history: {
+    label: 'Ollama Admin · Query-Historie',
+    description: 'Vergangene Admin-Queries öffnen und Statusinformationen einsehen.'
+  }
+}
+
+const activeViewLabel = computed(() => {
+  if (activeView.value === 'admin') {
+    return adminSubViews[activeSubView.value]?.label || 'Ollama Admin'
+  }
+  return viewMeta[activeView.value]?.label || 'Ansicht'
+})
+
+const activeViewDescription = computed(() => {
+  if (activeView.value === 'admin') {
+    return adminSubViews[activeSubView.value]?.description || ''
+  }
+  return viewMeta[activeView.value]?.description || ''
+})
 
 const sidebarItems = computed(() => [
   {
@@ -150,7 +182,32 @@ const sidebarItems = computed(() => [
         key: 'admin',
         label: 'Ollama Admin',
         icon: 'pi pi-cog',
-        command: () => selectView('admin')
+        items: [
+          {
+            key: 'admin-inventory',
+            label: 'Modellbestand',
+            icon: 'pi pi-database',
+            command: () => selectAdminSubView('inventory')
+          },
+          {
+            key: 'admin-pulls',
+            label: 'Installationsstatus',
+            icon: 'pi pi-cloud-download',
+            command: () => selectAdminSubView('pulls')
+          },
+          {
+            key: 'admin-console',
+            label: 'Query Console',
+            icon: 'pi pi-play-circle',
+            command: () => selectAdminSubView('console')
+          },
+          {
+            key: 'admin-history',
+            label: 'Query-Historie',
+            icon: 'pi pi-history',
+            command: () => selectAdminSubView('history')
+          }
+        ]
       }
     ]
   }
@@ -158,6 +215,11 @@ const sidebarItems = computed(() => [
 
 function selectView(view) {
   activeView.value = view
+}
+
+function selectAdminSubView(subView) {
+  activeView.value = 'admin'
+  activeSubView.value = subView
 }
 
 function updateBeds(newBeds) {
