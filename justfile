@@ -5,6 +5,8 @@ compose := "docker compose"
 default:
     @just --list
 
+run: up
+
 up:
     {{compose}} up
 
