@@ -1,5 +1,5 @@
 <template>
-  <div class="grid-2">
+  <div class="advisor-content">
     <div class="side-panel-card">
       <div class="toolbar-row">
         <Select v-model="selectedBedId" :options="bedOptions" optionLabel="label" optionValue="value" placeholder="Beet wählen" style="min-width:220px" />
@@ -17,8 +17,10 @@
 
       <Message v-if="error" severity="error">{{ error }}</Message>
       <Message v-if="healthMessage" severity="info" style="margin-top:1rem">{{ healthMessage }}</Message>
+    </div>
 
-      <div class="meta-item" style="margin-top:1rem" v-if="taskState.id">
+    <div class="side-panel-card" v-if="taskState.id">
+      <div class="meta-item">
         <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; flex-wrap:wrap;">
           <div>
             <strong>Analyse-Status</strong>
@@ -37,7 +39,7 @@
       <div v-if="steps.length" style="margin-bottom:1rem;">
         <h4 style="margin:0 0 0.75rem">Ablauf der Ollama-Abfrage</h4>
         <div class="steps-list">
-          <div v-for="(step, index) in steps" :key="`${step.timestamp}-${index}`" class="step-item">
+          <div v-for="(step, index) in steps" :key="`${step.timestamp}-${index}`" class="advisor-step-item">
             <div class="step-marker">{{ index + 1 }}</div>
             <div class="step-content">
               <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:center;">
@@ -224,3 +226,18 @@ onBeforeUnmount(() => {
   stopPolling()
 })
 </script>
+
+<style scoped>
+.advisor-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.advisor-step-item {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+</style>
