@@ -34,20 +34,31 @@
     </div>
 
     <div class="side-panel-card">
-      <h3 style="margin-top:0">KI-Beetberater</h3>
-
+      <h3 style="margin-top:0">Ablauf der Ollama-Abfrage</h3>
       <div v-if="steps.length" style="margin-bottom:1rem;">
-        <h4 style="margin:0 0 0.75rem">Ablauf der Ollama-Abfrage</h4>
         <div class="steps-list">
-          <div v-for="(step, index) in steps" :key="`${step.timestamp}-${index}`" class="advisor-step-item">
-            <div class="step-marker">{{ index + 1 }}</div>
+          <div v-for="(step, index) in reversedSteps" :key="`${step.timestamp}-${index}`" class="advisor-step-item">
+            <div class="step-marker">{{ reversedSteps.length - index }}</div>
             <div class="step-content">
-              <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:center;">
-                <strong>{{ step.phase }}</strong>
-                <span class="small-muted">{{ formatTimestamp(step.timestamp) }}</span>
-              </div>
-              <div>{{ step.message }}</div>
-              <div class="small-muted">Fortschritt: {{ step.progress }}%</div>
+              <Tabs value="overview">
+                <TabList>
+                  <Tab value="overview">Überblick</Tab>
+                  <Tab value="details">Details</Tab>
+                </TabList>
+                <TabPanels>
+                  <TabPanel value="overview">
+                    <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:center;">
+                      <strong>{{ step.phase }}</strong>
+                      <span class="small-muted">{{ formatTimestamp(step.timestamp) }}</span>
+                    </div>
+                    <div>{{ step.message }}</div>
+                    <div class="small-muted">Fortschritt: {{ step.progress }}%</div>
+                  </TabPanel>
+                  <TabPanel value="details">
+                    <pre class="step-details">{{ formatStepDetails(step) }}</pre>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
             </div>
           </div>
         </div>
@@ -103,6 +114,11 @@ import Select from 'primevue/select'
 import Message from 'primevue/message'
 import ProgressBar from 'primevue/progressbar'
 import Tag from 'primevue/tag'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 import { createAnalyzeBedTask, getAnalyzeBedTask, backendHealth } from '@/api'
 import { seeds } from '@/data/seeds'
 
@@ -147,6 +163,7 @@ const taskState = computed(() => {
     tagSeverity: status === 'running' ? 'warn' : status === 'completed' ? 'success' : 'secondary'
   }
 })
+const reversedSteps = computed(() => [...steps.value].reverse())
 
 function stopPolling() {
   if (pollTimer) {
@@ -160,6 +177,12 @@ function formatTimestamp(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatStepDetails(step) {
+  const details = step?.details
+  if (!details || typeof details !== 'object') return 'Keine zusätzlichen Details vorhanden.'
+  return JSON.stringify(details, null, 2)
 }
 
 async function refreshTask() {
@@ -239,5 +262,15 @@ onBeforeUnmount(() => {
   grid-template-columns: 2.25rem minmax(0, 1fr);
   gap: 0.75rem;
   align-items: start;
+}
+
+.step-details {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  padding: 0.75rem;
 }
 </style>

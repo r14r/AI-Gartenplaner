@@ -381,13 +381,15 @@ async def refresh_model_cache():
     return models, cache
 
 
-def append_ai_step(task_id: str, phase: str, message: str, progress: int):
+def append_ai_step(task_id: str, phase: str, message: str, progress: int, details: Optional[dict] = None):
     event = {
         'timestamp': now_iso(),
         'phase': phase,
         'message': message,
         'progress': progress,
     }
+    if details:
+        event['details'] = details
     with ai_tasks_lock:
         task = ai_tasks.get(task_id)
         if not task:
@@ -549,7 +551,7 @@ def merge_analysis(deterministic: dict, llm: Optional[dict], model: Optional[str
 def run_analysis_task(task_id: str, payload: dict):
     deterministic = None
     try:
-        append_ai_step(task_id, 'validate', 'Eingabedaten werden validiert', 5)
+        append_ai_step(task_id, 'validate', 'Eingabedaten werden validiert', 5, details={'task_type': 'analyze-bed'})
         data = BedRequest(**payload)
 
         with ai_tasks_lock:
@@ -558,33 +560,43 @@ def run_analysis_task(task_id: str, payload: dict):
             task['started_at'] = now_iso()
             task['bed_name'] = data.bed_name
 
-        append_ai_step(task_id, 'rules', 'Regelengine prüft Mischkultur und Konflikte', 15)
+        append_ai_step(task_id, 'rules', 'Regelengine prüft Mischkultur und Konflikte', 15, details={'plants_count': len(data.plants)})
         deterministic = deterministic_analysis(data)
 
         cfg = load_config()
         model = cfg.analysis_model or cfg.active_model or DEFAULT_OLLAMA_MODEL
         system_prompt, user_prompt = build_analysis_prompt(data)
-        append_ai_step(task_id, 'prompt', f'Prompt wird für Modell {model} vorbereitet', 30)
+        append_ai_step(
+            task_id,
+            'prompt',
+            f'Prompt wird für Modell {model} vorbereitet',
+            30,
+            details={
+                'model': model,
+                'system_prompt': system_prompt,
+                'user_prompt': user_prompt,
+            }
+        )
 
-        append_ai_step(task_id, 'connect', 'Ollama-Erreichbarkeit wird geprüft', 45)
+        append_ai_step(task_id, 'connect', 'Ollama-Erreichbarkeit wird geprüft', 45, details={'url': f'{OLLAMA_BASE_URL}/api/tags'})
         try:
             with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
                 health = client.get(f'{OLLAMA_BASE_URL}/api/tags')
                 health.raise_for_status()
         except Exception:
-            append_ai_step(task_id, 'fallback', 'Ollama nicht erreichbar, Fallback auf Regelengine', 100)
+            append_ai_step(task_id, 'fallback', 'Ollama nicht erreichbar, Fallback auf Regelengine', 100, details={'source': 'deterministic-fallback'})
             finish_ai_task(task_id, status='completed', result=merge_analysis(deterministic, None, None, 'deterministic-fallback'))
             return
 
-        append_ai_step(task_id, 'ollama', f'Ollama-Anfrage läuft mit {model}', 60)
+        append_ai_step(task_id, 'ollama', f'Ollama-Anfrage läuft mit {model}', 60, details={'model': model, 'temperature': cfg.temperature})
         llm = call_ollama_json_sync(system_prompt, user_prompt, model, cfg.temperature)
-        append_ai_step(task_id, 'merge', 'KI-Antwort wird mit Regelengine zusammengeführt', 85)
+        append_ai_step(task_id, 'merge', 'KI-Antwort wird mit Regelengine zusammengeführt', 85, details={'llm_response_keys': list(llm.keys())})
 
         result = merge_analysis(deterministic, llm, model, 'ollama+deterministic')
-        append_ai_step(task_id, 'done', 'Analyse abgeschlossen', 100)
+        append_ai_step(task_id, 'done', 'Analyse abgeschlossen', 100, details={'source': result.get('source'), 'score': result.get('score')})
         finish_ai_task(task_id, status='completed', result=result)
     except Exception as exc:
-        append_ai_step(task_id, 'error', f'Analyse fehlgeschlagen: {exc}', 100)
+        append_ai_step(task_id, 'error', f'Analyse fehlgeschlagen: {exc}', 100, details={'error': str(exc)})
         fallback = merge_analysis(deterministic or {'score': 0, 'summary': 'Analyse fehlgeschlagen', 'good_pairs': [], 'conflicts': [], 'recommendations': [], 'layout_suggestion': [], 'source': 'failed'}, None, None, 'error') if deterministic else None
         finish_ai_task(task_id, status='failed', result=fallback, error=str(exc), progress=100)
 
